@@ -1,0 +1,113 @@
+Progate
+〜RubyOnRails レッスン７〜
+〜〜ユーザー画像を表示させる〜〜
+
+・プロフィール画像を表示させる仕組み
+①データベースに画像の『ファイル名』を保存。そのファイル名の画像を表示。
+②画像ファイルはpublicフォルダ内に保存。
+
+・ファイル名を保存するカラムを追加
+　データベースに変更を加える手順　　STEP１：マイグレーションファイルを作成
+                              STEP２：マイグレーションファイルの内容をデータベースへ反映
+
+  ターミナルのコンソール上にて
+  rails g modelコマンドでは、モデルも一緒に作成されてしまうので
+  マイグレーションファイルのみを作成する場合は　rails g migrationコマンドを使用
+  rails g migration マイグレーションファイル名　とする
+
+  rails g migration add_image_name_to_users
+  ↓
+  指定したマイグレーションファイル(rbファイル)が作成される。
+  　＊ファイル名の頭には作成日時がつく。
+
+  マイグレーションファイル内のchangeメソッドを記載した後、
+  rails db:migrateコマンドを実施。このコマンドはマイグレーションファイルのメソッドを実行するという意味。
+  *rails g modelコマンドで作成されたマイグレーションファイルにはchangeメソッドが自動生成されていた。
+
+  changeメソッドの中身を記載する
+  カラムを追加する場合は 『 add_column :テーブル名, :カラム名, :データ型 』
+  add_column :users, :image_name, :string
+
+  ここまで準備した後に　rails db:migrateコマンド実施！！
+
+・画像の準備
+  ユーザー登録時に初期画像が表示されるように設定
+  def create
+    @user = User.new(
+      name: params[:name],
+      email: params[:email],
+      # 引数を追加し、初期画像が設定する
+      image_name:"default_user.jpg"）
+
+    if @user.save
+      flash[:notice] = "ユーザー登録が完了しました"
+      redirect_to("/users/#{@user.id}")
+    else
+      render("users/new")
+    end
+  end
+  これで、新規登録時に新規ユーザのimage_nameカラムにdefault_user.jpgが保存される。
+
+・ビューに画像が表示されるようにする
+ユーザー画像を表示するためには、HTMLの<img>タグを用いる。
+画像はpublic/user_imagesフォルダに保存されているので、src属性の値は「/user_images/ファイル名」とする。
+Rubyのコード部分は<%= %>で囲む必要があることに注意！！
+
+<img src= "<%= "/user_images/#{@user.image_name}" %>" >
+         　　　「　/user_image/default_user.jpg 」となる
+ユーザー一覧、ユーザー詳細ページのビューファイルに上記のコードを書いておく。
+
+・画像の送信
+画像選択ボタンを作成
+  <input>タグに type="file"を追加することで、画像ファイルを選択するボタンが表示される。
+  ここでのname属性は"image"とする。
+  <input name="image" typy="file">
+
+データ送信に使用するformタグは、画像ファイルが関わる場合、{multipart:true}を追加する。
+<%= form_tag(" URL ", {mutipart:true}) %>
+
+・rubyのコードでファイルを作成
+Rubyでは元から用意されているFileクラスで、writeメソッドを使用。
+File.write("ファイルの場所","ファイル名")
+
+・ファイル名をデータベースに保存
+nameやemailを保存した時と同じように、@user.image_name を上書きする。
+ファイル名は、「ユーザーID.jpg」とする。
+  @user.image_name = "#{@user.id}.jpg"
+
+・画像を受け取る
+転送されたデータを、変数imageに代入する。
+  image = params[:image]
+受け取った画像で画像ファイルを作成する。
+上記の「rubyでファイル作成」を参考にして,Fileクラスを用いて作成。
+画像を扱う場合は、writeメソッドを　binwrite　へ変更する必要がある。
+　→　File.binwrite("ファイルの場所","ファイル名")
+                   public/~
+
+また変数imageに対してreadメソッドを使用することで、画像データを取り出すことができる。
+　→ image.read
+
+  File.binwrite("public/user_images/#{@user.image_name}", image.read)
+
+・画像が存在する場合のみ、画像を保存する処理が実施されるようにif文を使用。
+
+def update
+    @user = User.find_by(id: params[:id])
+    @user.name = params[:name]
+    @user.email = params[:email]
+
+    # 画像を保存する処理を追加してください
+    if params[:image]
+      @user.image_name = "#{@user.id}.jpg" 　← データベースのカラム情報を上書き
+      @user.save　　　　　　　　　　　　　　　　　←　上書き情報を保存
+      image = params[:image]　　　　　　　　　←　変数imageに画像データを代入　
+      File.binwrite("public/user_images/#{@user.image_name}", image.read)
+    end　　　　　　　　　　　　　　　　　　　↑　画像ファイル(ユーザーID.jpg)をpublicフォルダに作成　　　　
+    　
+    if @user.save
+      flash[:notice] = "ユーザー情報を編集しました"
+      redirect_to("/users/#{@user.id}")
+    else
+      render("users/edit")
+    end
+  end
